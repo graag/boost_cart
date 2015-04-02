@@ -116,8 +116,28 @@ function boost_cart.cart:on_punch(puncher, time_from_last_punch, tool_capabiliti
 end
 
 function boost_cart.cart:on_step(dtime)
+	local pos = self.object:getpos()
 	local vel = self.object:getvelocity()
 	local update = {}
+
+	local ctrl, player = nil, nil
+	if self.driver then
+		player = minetest.get_player_by_name(self.driver)
+		if player then
+			ctrl = player:get_player_control()
+		end
+	end
+
+	if ctrl and ctrl.up and vector.equals(vel, {x=0, y=0, z=0}) then
+		local cart_dir = boost_cart:get_rail_direction(pos, player:get_look_dir(), nil, nil, self.railtype)
+		if vector.equals(cart_dir, {x=0, y=0, z=0}) then
+			return
+		end
+		self.velocity = vector.multiply(cart_dir, 3)
+		self.old_pos = nil
+		self.punched = true
+    end
+
 	if self.punched then
 		vel = vector.add(vel, self.velocity)
 		self.object:setvelocity(vel)
@@ -136,13 +156,6 @@ function boost_cart.cart:on_step(dtime)
 		end
 	end
 	
-	local ctrl, player = nil, nil
-	if self.driver then
-		player = minetest.get_player_by_name(self.driver)
-		if player then
-			ctrl = player:get_player_control()
-		end
-	end
 	if self.old_pos then
 		local diff = vector.subtract(self.old_pos, pos)
 		for _,v in ipairs({"x","y","z"}) do
@@ -214,10 +227,14 @@ function boost_cart.cart:on_step(dtime)
 			end
 			acc = acc + (speed_mod * 8)
 		else
-			acc = acc - 0.4
-			-- Handbrake
-			if ctrl and ctrl.down and math.abs(vel.x + vel.z) > 1.2 then
-				acc = acc - 1.2
+			if ctrl and ctrl.up then
+				acc = acc + 3
+			else
+				acc = acc - 0.4
+				-- Handbrake
+				if ctrl and ctrl.down and math.abs(vel.x + vel.z) > 1.2 then
+					acc = acc - 1.2
+				end
 			end
 		end
 		
